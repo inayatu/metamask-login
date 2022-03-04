@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Metamask JWT</title>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.6.1/web3.min.js"
+      integrity="sha512-5erpERW8MxcHDF7Xea9eBQPiRtxbse70pFcaHJuOhdEBQeAxGQjUwgJbuBDWve+xP/u5IoJbKjyJk50qCnMD7A=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+  </head>
+  <body>
+    <!-- Simple app to interact with Metamask and get JWT -->
+    <button onclick="connectMetaMask()">Login with MetaMask</button>
+  </body>
+
+  <script>
+    let account = null;
+    let nonce = null;
+    let signature = null;
+    let web3 = null;
+
+    const baseUrl = "http://localhost:4000";
+
+    // Metamask connection
+    async function connectMetaMask(event) {
+      if (!window.ethereum) {
+        alert("Install metamask");
+        return;
+      }
+
+      // connect with metamask
+      try {
+        await window.ethereum.enable();
+      } catch (error) {
+        console.log(error);
+        return;
+      }
+
+      web3 = new Web3(window.ethereum);
+      try {
+        // Get account ID
+        account = (
+          await window.ethereum.request({
+            method: "eth_requestAccounts",
+          })
+        )[0];
+        getUser(account);
+      } catch (error) {}
+    }
+
+    // Gets user if exists else create new one and returns the user
+    async function getUser(account) {
+      const resp = await fetchRequest("/api/users/" + account, {
+        method: "GET",
+      });
+
+      const user = resp.data.user;
+      // request to sign the message
+      signMessage(user.nonce, user.publicAddress);
+    }
+
+    // Sign the message
+    async function signMessage(nonce, publicAddress) {
+      signature = await web3.eth.personal.sign(
+        `Vorbit verification-${nonce}`,
+        publicAddress,
+        "" // MetaMask will ignore the password argument here
+      );
+      console.log("signature: ", signature);
+      fetchRequest("/api/auth", {
+        method: "POST",
+        body: JSON.stringify({ publicAddress, signature }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+    }
+
+    // Send request
+    function fetchRequest(url, option) {
+      return new Promise((resolve, reject) => {
+        fetch(baseUrl + url, option)
+          .then((res) => res.json())
+          .then((data) => {
+            console.log("api resp: ", data);
+            resolve(data);
+          })
+          .catch((err) => {
+            console.log("api err: ", err);
+            reject(err);
+          });
+      });
+    }
+
+    // Metamask event listener
+    window.addEventListener("load", function () {
+      if (window.ethereum) {
+        // Detect Metamask Account change
+        window.ethereum.on("accountsChanged", async (accounts) => {
+          account = accounts[0];
+          console.log("[*] account changed", account);
+
+          // Login with new account
+          if (account) {
+            // Destroy the existing token
+            // Login with new account
+          } else {
+            // Logout of the system
+            window.location.reload();
+          }
+        });
+      }
+    });
+  </script>
+</html>
